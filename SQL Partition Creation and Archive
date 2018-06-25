@@ -1,0 +1,263 @@
+CREATE TABLE Orders
+    (
+      OrderID INT IDENTITY NOT NULL,
+      OrderDate DATETIME NOT NULL ,
+      CustomerID INT NOT NULL , -- foreign key to customers
+      OrderStatus CHAR(1) NOT NULL
+                          DEFAULT 'P' ,
+      ShippingDate DATETIME
+    );
+ 
+CREATE TABLE OrderDetails
+    (
+      OrderID INT ,
+      OrderLineID INT ,
+      OrderDate DATETIME , -- there is a reason this is in the detail
+                           -- as well as the header
+      ProductID INT , -- foreign key to products
+      OrderQuantity INT ,
+      LineTotal MONEY
+    );
+
+----------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------
+
+CREATE PARTITION FUNCTION PartitionByMonth (DATETIME)
+AS RANGE RIGHT 
+FOR VALUES ('2011/11/01', '2011/12/01', '2012/01/01', '2012/02/01',
+             '2012/03/01', '2012/04/01');
+ 
+CREATE PARTITION SCHEME PartitionToPrimary 
+AS PARTITION PartitionByMonth 
+ALL TO ([PRIMARY]);
+
+
+----------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------
+
+CREATE CLUSTERED INDEX idx_Orders_OrderDate ON Orders (OrderDate);
+ 
+ALTER TABLE Orders ADD CONSTRAINT pk_Orders PRIMARY KEY (OrderID, OrderDate);
+ 
+CREATE NONCLUSTERED INDEX idx_Orders_CustomerID ON Orders (CustomerID);
+ 
+CREATE NONCLUSTERED INDEX idx_Orders_OrderStatusOrderDate ON Orders 
+       (OrderStatus, OrderDate);
+ 
+CREATE CLUSTERED INDEX idx_OrderDetails_OrderDate ON OrderDetails (OrderDate);
+ 
+ALTER TABLE OrderDetails ADD CONSTRAINT pk_OrderDetails PRIMARY KEY 
+       (OrderID, OrderLineID, OrderDate);
+ 
+CREATE NONCLUSTERED INDEX idx_OrderDetails_ProductID ON OrderDetails (ProductID);
+GO
+
+
+----------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------
+
+-- Query 1: Total per customer for the last month
+SELECT  CustomerID ,
+        SUM(LineTotal) AS TotalPurchased
+FROM    dbo.Orders AS o
+        INNER JOIN dbo.OrderDetails AS od ON o.OrderID = od.OrderID
+WHERE   o.OrderDate >= '2012/04/01'
+GROUP BY CustomerID
+ 
+-- Query 2: Total per product for one month
+SELECT  ProductID ,
+        SUM(OrderQuantity)
+FROM    dbo.OrderDetails AS od
+WHERE   OrderDate >= '2011/12/01'
+        AND OrderDate < '2012/01/01'
+GROUP BY ProductID
+  
+-- Query 3: Which customers bought product X?
+SELECT DISTINCT
+        CustomerID
+FROM    dbo.Orders AS o
+        INNER JOIN dbo.OrderDetails AS od ON o.OrderID = od.OrderID
+WHERE   ProductID = 375;  
+ 
+-- Query 4: Are any orders unshipped for more than 2 months?
+SELECT  OrderID
+FROM    dbo.Orders AS o
+WHERE   OrderDate < DATEADD(mm, -2, '2012/05/01')
+        AND ShippingDate IS NULL;
+
+
+----------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------
+
+CREATE TABLE Orders_Staging
+    (
+      OrderID INT IDENTITY
+                  NOT NULL
+                  PRIMARY KEY ,
+      OrderDate DATETIME NOT NULL ,
+      CustomerID INT NOT NULL , -- foreign key to customers
+      OrderStatus CHAR(1) NOT NULL
+                          DEFAULT 'P' ,
+      ShippingDate DATETIME
+    );
+ 
+-- Create all indexes to match the partitioned orders table
+CREATE CLUSTERED INDEX idx_Orders_OrderDate ON Orders_Staging (OrderDate);
+ 
+ALTER TABLE Orders_Staging ADD CONSTRAINT pk_Orders PRIMARY KEY (OrderID, OrderDate);
+ 
+CREATE NONCLUSTERED INDEX idx_Orders_CustomerID ON Orders_Staging (CustomerID);
+ 
+CREATE NONCLUSTERED INDEX idx_Orders_OrderStatusOrderDate ON Orders_Staging 
+      (OrderStatus, OrderDate);
+ 
+-- add a new partition value to the partition function
+ALTER PARTITION FUNCTION PartitionByMonth() SPLIT RANGE ('2012/06/01')
+ 
+-- switch the staging table with the last partition of the Orders table. 
+-- After this the staging table is empty and the data that was in it is
+-- in the Orders table
+ALTER TABLE Orders_Staging SWITCH PARTITION 1 TO Orders PARTITION 7 
+ 
+-- switch the first partition of the Orders table with the staging table
+ALTER TABLE Orders SWITCH PARTITION 1 TO Orders_Staging PARTITION 1
+ 
+-- remove the earliest boundary point in the partition function
+ALTER PARTITION FUNCTION PartitionByMonth() MERGE RANGE ('2011/11/01')
+
+
+----------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------
+
+USE [WideWorldImportersDW]
+GO
+
+CREATE PARTITION FUNCTION [PF_Purch_Year](date) AS RANGE RIGHT FOR VALUES (‘2014-01-01’, ‘2015-01-01’, ‘2016-01-01’)
+GO
+
+CREATE PARTITION SCHEME [PS_Purch_Year] AS PARTITION [PF_Purch_Year] TO (Purch2013, Purch2014, Purch2015, Purch2016)
+GO
+
+
+----------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------
+
+USE [WideWorldImportersDW]
+GO
+
+DROP INDEX [CCX_Fact_Purchase] ON [Fact].[Purchase]
+GO
+
+ALTER TABLE [Fact].[Purchase] DROP CONSTRAINT [PK_Fact_Purchase]
+GO
+
+DROP INDEX [FK_Fact_Purchase_Date_Key] ON [Fact].[Purchase]
+GO
+
+DROP INDEX [FK_Fact_Purchase_Stock_Item_Key] ON [Fact].[Purchase]
+GO
+
+DROP INDEX [FK_Fact_Purchase_Supplier_Key] ON [Fact].[Purchase]
+GO
+
+-- Here we go trying to rebuild….this is where it gets interesting…
+
+USE [WideWorldImportersDW]
+GO
+
+CREATE CLUSTERED COLUMNSTORE INDEX [CCX_Fact_Purchase] ON [Fact].[Purchase]
+WITH (DROP_EXISTING = OFF)
+ON PS_Purch_Year ([Date Key])
+GO
+
+
+
+----------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------
+
+ALTER TABLE [Fact].[Purchase] ADD CONSTRAINT [PK_Fact_Purchase] PRIMARY KEY CLUSTERED
+(
+	[Purchase Key] ASC,
+	[Date Key] ASC
+)ON PS_Purch_Year ([Date Key])
+GO
+
+
+ALTER TABLE [Fact].[Purchase] DROP CONSTRAINT [PK_Fact_Purchase]
+GO
+
+USE [WideWorldImportersDW]
+GO
+
+CREATE CLUSTERED COLUMNSTORE INDEX [CCX_Fact_Purchase] ON [Fact].[Purchase]
+WITH (DROP_EXISTING = OFF)
+ON PS_Purch_Year ([Date Key])
+GO
+
+ALTER TABLE [Fact].[Purchase] ADD CONSTRAINT [PK_Fact_Purchase] PRIMARY KEY NONCLUSTERED
+(
+	[Purchase Key] ASC,
+	[Date Key] ASC
+)ON PS_Purch_Year ([Date Key])
+GO
+
+CREATE NONCLUSTERED INDEX [FK_Fact_Purchase_Date_Key] ON [Fact].[Purchase]
+(
+	[Date Key] ASC
+)ON PS_Purch_Year ([Date Key])
+GO
+
+CREATE NONCLUSTERED INDEX [FK_Fact_Purchase_Stock_Item_Key] ON [Fact].[Purchase]
+(
+	[Stock Item Key] ASC
+)ON PS_Purch_Year ([Date Key])
+GO
+
+CREATE NONCLUSTERED INDEX [FK_Fact_Purchase_Supplier_Key] ON [Fact].[Purchase]
+(
+	[Supplier Key] ASC
+)ON PS_Purch_Year ([Date Key])
+GO
+
+
+
+----------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------
+
+SELECT 
+	t.name AS TableName, i.name AS IndexName, p.partition_number, p.partition_id, i.data_space_id,
+	f.function_id, f.type_desc, r.boundary_id, r.value AS BoundaryValue
+FROM sys.tables AS t
+	JOIN sys.indexes AS i
+		ON t.object_id = i.object_id
+	JOIN sys.partitions AS p
+		ON i.object_id = p.object_id 
+			AND i.index_id = p.index_id
+	JOIN sys.partition_schemes AS s
+		ON i.data_space_id = s.data_space_id
+	JOIN sys.partition_functions AS f
+		ON s.function_id = f.function_id
+	LEFT JOIN sys.partition_range_values AS r
+		ON f.function_id = r.function_id 
+			AND r.boundary_id = p.partition_number
+WHERE t.name = ‘Purchase’
+ORDER BY p.partition_number;
+
+
+----------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+----------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+----------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+----------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------
