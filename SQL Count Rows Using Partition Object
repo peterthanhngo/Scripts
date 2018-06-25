@@ -1,0 +1,21 @@
+SELECT OBJECT_NAME(object_id), SUM(row_count) AS rows
+FROM sys.dm_db_partition_stats
+WHERE object_id = OBJECT_ID('Odyssey.fit_trip_detail_supplier')
+GROUP BY OBJECT_NAME(object_id);
+
+------------------------
+
+SELECT OBJECT_NAME(object_id), row_count AS rows
+FROM sys.dm_db_partition_stats
+WHERE object_id = OBJECT_ID('Odyssey.fit_trip_detail_supplier')
+
+------------------------
+
+DECLARE @TableName sysname
+SET @TableName = 'bigTransactionHistory'
+
+SELECT OBJECT_NAME(object_id), SUM(row_count) AS rows
+FROM sys.dm_db_partition_stats
+WHERE object_id = OBJECT_ID(@TableName)
+AND index_id < 2
+GROUP BY OBJECT_NAME(object_id);
