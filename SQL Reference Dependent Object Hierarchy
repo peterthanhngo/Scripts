@@ -1,0 +1,51 @@
+WITH ObjectHierarchy ( Base_Object_id , Base_Schema_id , Base_Object_Name , Base_Object_Type, Object_Id , Schema_Id , Name , Type_Desc , Level , Obj_Path) 
+AS 
+( 
+SELECT  
+	  so.object_id as Base_Object_Id 
+	, so.schema_id as Base_Schema_Id 
+	, so.name as Base_Object_Name 
+	, so.type_desc as Base_Object_Type
+	, so.object_id as Object_Id 
+	, so.schema_id as Schema_Id 
+	, so.name 
+	, so.type_desc 
+	, 0 as Level 
+	, CONVERT ( NVARCHAR ( 1000 ) , N'/' + so.name ) AS Obj_Path 
+FROM sys.objects so 
+LEFT JOIN sys.sql_expression_dependencies ed on ed.referenced_id = so.object_id 
+--LEFT JOIN sys.objects rso ON rso.object_id = ed.referencing_id 
+--WHERE rso.type IS NULL 
+AND so.type IN ( 'P', 'V', 'IF', 'FN', 'TF' ) 
+
+UNION ALL
+
+SELECT   
+	  cp.Base_Object_Id as Base_Object_Id 
+	, cp.Base_schema_id 
+	, cp.Base_Object_Name 
+	, cp.Base_Object_Type
+	, so.object_id as Object_Id 
+	, so.schema_id as ID_Schema 
+	, so.name 
+	, so.type_desc 
+	, Level + 1 AS Level 
+	, CONVERT ( NVARCHAR ( 1000 ) , cp.Obj_Path + N'/' + so.name ) AS Obj_Path 
+FROM sys.objects so 
+INNER JOIN sys.sql_expression_dependencies ed ON ed.referenced_id = so.object_id 
+INNER JOIN sys.objects rso ON rso.object_id = ed.referencing_id 
+INNER JOIN ObjectHierarchy AS cp on rso.object_id = cp.Object_id AND rso.object_id <> so.object_id 
+WHERE so.type IN ( 'P', 'V', 'IF', 'FN', 'TF', 'U') 
+AND ( rso.type IS NULL OR rso.type IN ( 'P', 'V', 'IF', 'FN', 'TF', 'U' ) ) 
+AND cp.Obj_Path NOT LIKE '%/' + so.name + '/%' )   -- prevent cycles n hierarcy
+
+SELECT   
+	  Base_Object_Name 
+	, Base_Object_Type
+	, REPLICATE ( '   ' , Level ) + Name as Indented_Name 
+	, SCHEMA_NAME ( Schema_Id ) + '.' + Name as Object_Name 
+	, Type_Desc as Object_Type 
+	, Level 
+	, Obj_Path 
+FROM ObjectHierarchy AS p 
+ORDER BY Obj_Path 
