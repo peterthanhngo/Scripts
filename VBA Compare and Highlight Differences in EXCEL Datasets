@@ -1,0 +1,59 @@
+Sub Compare()
+'
+' Compare Macro
+'
+
+'
+    Dim StartRow As Integer
+    Dim EndRow As Integer
+    Dim StartCol As Integer
+    Dim EndCol As Integer
+    Dim CompareColStart As Integer
+    Dim RowCount As Integer
+    Dim ColCount As Integer
+    
+    StartRow = 1
+    EndRow = 200
+    StartCol = 1
+    EndCol = 21
+    
+    CompareColStart = 22
+    
+    For RowCount = StartRow To EndRow
+        For ColCount = 1 To EndCol
+            If Sheet1.Cells(RowCount, ColCount).Value <> Sheet1.Cells(RowCount, CompareColStart + ColCount).Value Then
+                ActiveSheet.Cells(RowCount, ColCount).Select
+
+                Selection.Font.Bold = True
+                With Selection.Font
+                    .Color = -16776961
+                    .TintAndShade = 0
+                End With
+                With Selection.Interior
+                    .Pattern = xlSolid
+                    .PatternColorIndex = xlAutomatic
+                    .Color = 65535
+                    .TintAndShade = 0
+                    .PatternTintAndShade = 0
+                End With
+
+                ActiveSheet.Cells(RowCount, CompareColStart + ColCount).Select
+
+                Selection.Font.Bold = True
+                With Selection.Font
+                    .Color = -16776961
+                    .TintAndShade = 0
+                End With
+                With Selection.Interior
+                    .Pattern = xlSolid
+                    .PatternColorIndex = xlAutomatic
+                    .Color = 65535
+                    .TintAndShade = 0
+                    .PatternTintAndShade = 0
+                End With
+
+            End If
+        Next ColCount
+    Next RowCount
+
+End Sub
