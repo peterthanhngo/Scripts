@@ -1,6 +1,70 @@
 -- List all Objects
 SELECT * FROM $SYSTEM.TMSCHEMA_PARTITIONS
 
+-----------------------------------------------------------------------------------------------------------------------------
+
+
+= AnalysisServices.Database(TabularInstanceName, TabularDBName, [Query="Select [ID], [PerspectiveID], [TableID], [IncludeAll], [ModifiedTime] from $SYSTEM.TMSCHEMA_PERSPECTIVE_TABLES"])
+= Table.SelectRows(#"Renamed Columns3", each not Text.StartsWith([To Column Name], "RowNumber-"))
+= Table.RenameColumns(Source,{{"DataCategory", "To Table Data Category"}, {"IsHidden", "To Table Is Hidden"}, {"Name", "To Table Name"}, {"Description", "To Table Description"}})
+= Table.ExpandTableColumn(#"Merged Queries2", "NewColumn", {"PerspectiveID"}, {"PerspectiveID"})
+= Table.TransformColumnTypes(#"Renamed Columns", {{"DataTypeID", Int64.Type}, {"Data Type", type text}})
+
+
+SELECT [Catalog_Name], [Description], Roles, [Date_Modified], [Compatibility_Level], [type], [Database_ID]
+FROM $SYSTEM.DBSCHEMA_CATALOGS WHERE [Catalog_Name] = 'APTProductsPREPROD'
+
+SELECT [ID], [Name], [Description], [Culture], [ModifiedTime], [StructureModifiedTime] 
+FROM $SYSTEM.TMSCHEMA_MODEL
+
+SELECT [ID], [RoleID], [MemberName], [MemberID], IdentityProvider, MemberType, ModifiedTime 
+FROM $SYSTEM.TMSCHEMA_ROLE_MEMBERSHIPS
+
+SELECT [ID], [ModelID], [Name], [Description], [ModifiedTime] 
+FROM $SYSTEM.TMSCHEMA_PERSPECTIVES
+
+SELECT [ID], [ROLEID], [TableID], [FilterExpression], ModifiedTime 
+FROM $SYSTEM.TMSCHEMA_TABLE_PERMISSIONS
+
+SELECT [ID], [ModelID], [IsActive], [Type], [CrossfilteringBehavior], [FromTableID], [FromColumnID], [FromCardinality], [ToTableID], [ToColumnID], [ToCardinality], [ModifiedTime] 
+FROM $SYSTEM.TMSCHEMA_RELATIONSHIPS
+
+SELECT [ID], [ModelID], [Name], [DataCategory], [Description], [IsHidden] 
+FROM $SYSTEM.TMSCHEMA_TABLES
+
+SELECT [ID], [TableID],  [Name], [Description] , [DataType], [Expression], [FormatString], [IsHidden], [ModifiedTime], [StructureModifiedTime], [KPIID], [IsSimpleMeasure], [DisplayFolder] 
+FROM $SYSTEM.TMSCHEMA_MEASURES
+
+SELECT [ID], [ModelID], [Name], [Description], ModelPermission, ModifiedTime 
+FROM $SYSTEM.TMSCHEMA_ROLES
+
+SELECT [ID], [MeasureID], [Description], [TargetDescription],[TargetExpression], [TargetFormatString],[StatusGraphic], [StatusDescription], [StatusExpression], [TrendGraphic], [TrendDescription], [TrendExpression], [ModifiedTime] 
+FROM $SYSTEM.TMSCHEMA_KPIS
+
+SELECT [ID], [HierarchyID], [Ordinal], [Name], [Description], [ColumnID], [ModifiedTime] 
+FROM $SYSTEM.TMSCHEMA_LEVELS
+
+SELECT [ID], [TableID], [ExplicitName] , [ExplicitDataType],  [DataCategory], [Description], [IsHidden], [IsUnique], [IsKey], [SummarizeBy], [ColumnStorageID], [Type], [SourceColumn], [Expression], [FormatString], [SortByColumnID], [AttributeHierarchyID], [ModifiedTime], [StructureModifiedTime], [DisplayFolder] 
+FROM $SYSTEM.TMSCHEMA_COLUMNS
+
+SELECT [ID], [TableID], [Name], [Description], [DataSourceID], [QueryDefinition], [Type], [Mode], ModifiedTime 
+FROM $SYSTEM.TMSCHEMA_PARTITIONS
+
+SELECT [ID], [COlumnID], [Name], [OrderByColumn], Locale, [Statistics_DistinctStates], [Statistics_RowCount], [Statistics_HasNulls] 
+FROM $SYSTEM.TMSCHEMA_COLUMN_STORAGES where Locale <> 0
+
+SELECT [ID], [ModelID], [Name], [Description], [Type], [ConnectionString], [ImpersonationMode], [Account], [ModifiedTime] 
+FROM $SYSTEM.TMSCHEMA_DATA_SOURCES
+
+SELECT [ID], [PerspectiveTableID], [ColumnID], [ModifiedTime] 
+FROM $SYSTEM.TMSCHEMA_PERSPECTIVE_Columns
+
+SELECT [ID], [TableID], [Name], [Description], [IsHidden], [HierarchyStorageID], [ModifiedTime], [StructureModifiedTime], [DisplayFolder] 
+FROM $SYSTEM.TMSCHEMA_HIERARCHIES
+
+
+
+-----------------------------------------------------------------------------------------------------------------------------
 
 -All Cubes in database
 SELECT [CATALOG_NAME] AS [DATABASE],CUBE_CAPTION AS [CUBE/PERSPECTIVE],BASE_CUBE_NAME
